@@ -15,8 +15,8 @@ float adaptiveQuadrature(float* range, float tolerance) {
 	stack<float*> s;
 	s.push(range);
 	float area = 0;
-	float* r;
-	float m;
+	float* r;	//range
+	float m;	//midpoint
 	while (!s.empty()) {
 		r = s.top();
 		s.pop();
