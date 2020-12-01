@@ -1,7 +1,9 @@
-#include <omp.h>
+//#include <omp.h>
 #include <iostream>
 #include <stack>
 #include <chrono>
+#include <math.h>
+
 using namespace std;
 
 float function(float x) {
@@ -57,7 +59,7 @@ float adaptiveQuadrature(float* range, float tolerance) {
 		//end of critical section
 		if (!more)
 			break;
-		while (getWork(s, r)
+		while (getWork(s, r))
 		{
 			float y1 = function(r[0]);
 			float y2 = function(r[1]);
@@ -81,7 +83,7 @@ float adaptiveQuadrature(float* range, float tolerance) {
 				float* r2 = new float[2];
 				r2[0] = m;
 				r2[1] = r[1];
-				if (!putWork(r1) || !putWork(r2))
+				if (!putWork(s, r1) || !putWork(s, r2))
 					cout << "No room in stack" << endl;
 				delete r;
 			}
@@ -113,6 +115,6 @@ int main(int argc, char** argv) {
 	auto t2 = chrono::high_resolution_clock::now();
 	auto duration = chrono::duration_cast<chrono::microseconds>(t2 - t1).count();
 	cout << "The area is " << area << endl;
-	cout << "It ran in " << duration << " seconds.\n";
+	cout << "It ran in " << duration << "micro seconds.\n";
 	return 0;
 }

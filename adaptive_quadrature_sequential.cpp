@@ -1,10 +1,11 @@
 #include <iostream>
 #include <stack>
 #include <chrono>
+#include <math.h>
 using namespace std;
 
 float function(float x) {
-	return x;
+	return x * x;
 }
 
 float trapezoidalArea(float x, float y1, float y2) {
@@ -64,6 +65,6 @@ int main(int argc, char** argv) {
 	auto t2 = chrono::high_resolution_clock::now();
 	auto duration = chrono::duration_cast<chrono::microseconds>(t2 - t1).count();
 	cout << "The area is " << area << endl;
-	cout<<"It ran in "<<duration<<" seconds.\n";
+	cout<<"It ran in "<<duration<<" micro seconds.\n";
 	return 0;
 }
