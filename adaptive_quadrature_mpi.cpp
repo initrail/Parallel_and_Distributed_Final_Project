@@ -3,59 +3,66 @@
 #include <unistd.h>
 using namespace std;
 
-void update(void* var1, MPI_Op op, void* var2, MPI_Datatype type,  MPI_Win& window){	
+int idle = 0;
+float area = 0;
+MPI_Win idlewin;
+MPI_Win areawin;
+int P;
+void rmaOperation(void* var1, MPI_Op op, void* var2, MPI_Datatype type,  MPI_Win& window){	
 	MPI_Win_lock(MPI_LOCK_EXCLUSIVE, 0, 0, window);
 	MPI_Fetch_and_op(var2, var1, type, 0, 0, op, window);
-	//MPI_Get(var1, 1, type, 0, 0, 1, type, window);
+	MPI_Get(var1, 1, type, 0, 0, 1, type, window);
 	MPI_Win_unlock(0, window);
 	//MPI_Get and the print statement are for debugging purposes
-	/*if(type == MPI_INT)
+	if(type == MPI_INT)
 		printf("idle = %d\n", *((int*)var1));
 	else if(type == MPI_FLOAT)
-		printf("area = %f\n", *((float*)var1));*/
+		printf("area = %f\n", *((float*)var1));
 }
 
-void* get(void* var, MPI_Datatype type, MPI_Win& window){
+void* rmaGet(void* var, MPI_Datatype type, MPI_Win& window){
 	MPI_Win_lock(MPI_LOCK_EXCLUSIVE, 0, 0, window);
 	MPI_Get(var, 1, type, 0, 0, 1, type, window);
 	MPI_Win_unlock(0, window);
 	return var;
 }
 
-void adaptiveQuadrature(float* range,
-			float tolerance,
-			int& idle,
-			float& area,
-			int numProcesses,
-			int rank,
-			MPI_Win &idlewin,
-			MPI_Win& areawin){
+void adaptiveQuadrature(float* range, float tolerance, int rank){
 	int decr = -1;
 	int incr = 1;
-	float area1 = .45;
-	float a;
+	float area1 = 0;
 	MPI_Request req;
-	int i;
-	update(&idle, MPI_SUM, &decr, MPI_INT, idlewin);
-	i = *((int*) get(&i, MPI_INT, idlewin));
-	printf("process %d idle = %d\n", rank, i);
-	update(&area, MPI_SUM, &area1, MPI_FLOAT, areawin);
-	a = *((float*) get(&a, MPI_FLOAT, areawin));
-	printf("process %d area = %f\n", rank, a);
+	rmaOperation(&idle, MPI_SUM, &decr, MPI_INT, idlewin);
+	idle = *((int*) rmaGet(&idle, MPI_INT, idlewin));
+	//printf("process %d idle = %d\n", rank, idle);
+	rmaOperation(&area, MPI_SUM, &area1, MPI_FLOAT, areawin);
+	area = *((float*) rmaGet(&area, MPI_FLOAT, areawin));
+	//printf("process %d area = %f\n", rank, area);
+	while(true){
+		idle = *((int*)rmaGet(&idle, MPI_INT, idlewin));
+		if(workready() || (idle != P))
+			//idle = idle - 1
+			rmaOperation(&idle, MPI_SUM, &decr, MPI_INT, idlewin);
+		else
+			break;
+		//idle = idle + 1
+		while(getwork()){
+
+		}
+		rmaOperation(&idle, MPI_SUM, &incr, MPI_INT, idlewin);
+	}
 }
 
 int main(int argc, char** argv){
-	int numProcesses, rank;
+	int rank;
 	float* range;
 	float tolerance;
 	MPI_Win idlewin;
 	MPI_Win areawin;
 	MPI_Init(&argc, &argv);
-	MPI_Comm_size(MPI_COMM_WORLD, &numProcesses);
+	MPI_Comm_size(MPI_COMM_WORLD, &P);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-	int idle = numProcesses;
-	float area = 0;
-	cout<<idle<<endl;
+	idle = P;
 	if(rank == 0){
 		MPI_Win_create(&idle, sizeof(int), sizeof(int), MPI_INFO_NULL, MPI_COMM_WORLD, &idlewin);
 		MPI_Win_create(&area, sizeof(float), sizeof(float), MPI_INFO_NULL, MPI_COMM_WORLD, &areawin);
@@ -64,7 +71,7 @@ int main(int argc, char** argv){
 		MPI_Win_create(NULL, 0, sizeof(int), MPI_INFO_NULL, MPI_COMM_WORLD, &idlewin);
 		MPI_Win_create(NULL, 0, sizeof(float), MPI_INFO_NULL, MPI_COMM_WORLD, &areawin);
 	}
-	adaptiveQuadrature(range, tolerance, idle, area, numProcesses, rank, idlewin, areawin);
+	adaptiveQuadrature(range, tolerance, rank);
 	MPI_Win_free(&idlewin);
 	MPI_Win_free(&areawin);
 	MPI_Finalize();
