@@ -45,10 +45,10 @@ void adaptiveQuadrature(float* range, float tolerance, int rank){
 			rmaOperation(&idle, MPI_SUM, &decr, MPI_INT, idlewin);
 		else
 			break;
-		//idle = idle + 1
 		while(getwork()){
 
 		}
+		//idle = idle + 1
 		rmaOperation(&idle, MPI_SUM, &incr, MPI_INT, idlewin);
 	}
 }
@@ -57,8 +57,6 @@ int main(int argc, char** argv){
 	int rank;
 	float* range;
 	float tolerance;
-	MPI_Win idlewin;
-	MPI_Win areawin;
 	MPI_Init(&argc, &argv);
 	MPI_Comm_size(MPI_COMM_WORLD, &P);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);

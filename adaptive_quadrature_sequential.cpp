@@ -1,69 +1,85 @@
 #include <iostream>
-#include <stack>
-#include <chrono>
+#include <mpi.h>
+#include <unistd.h>
 using namespace std;
 
-float function(float x) {
-	return x;
+int idle = 0;
+float area = 0;
+MPI_Win idlewin;
+MPI_Win areawin;
+int P;
+static const int ARRAY_LEN = 1000;
+struct task{
+	float a;
+	float b;
+};
+
+void rmaOperation(void* var1, MPI_Op op, void* var2, MPI_Datatype type,  MPI_Win& window/*, int rank*/){	
+	MPI_Win_lock(MPI_LOCK_EXCLUSIVE, 0, 0, window);
+	MPI_Fetch_and_op(var2, var1, type, 0, 0, op, window);
+	//MPI_Get(var1, 1, type, 0, 0, 1, type, window);
+	MPI_Win_unlock(0, window);
+	//MPI_Get and the print statement are for debugging purposes
+	/*if(type == MPI_INT)
+		printf("p %d idle = %d\n", rank, *((int*)var1));
+	else if(type == MPI_FLOAT)
+		printf("p %d area = %f\n", rank, *((float*)var1));*/
 }
 
-float trapezoidalArea(float x, float y1, float y2) {
-	return x * fmin(y1, y2) + (fmax(y1, y2) - fmin(y1, y2)) * x / 2;
+void* rmaGet(void* var, MPI_Datatype type, MPI_Win& window){
+	MPI_Win_lock(MPI_LOCK_EXCLUSIVE, 0, 0, window);
+	MPI_Get(var, 1, type, 0, 0, 1, type, window);
+	MPI_Win_unlock(0, window);
+	return var;
 }
 
-float adaptiveQuadrature(float* range, float tolerance) {
-	stack<float*> s;
-	s.push(range);
-	float area = 0;
-	float* r;
-	float m;
-	while (!s.empty()) {
-		r = s.top();
-		s.pop();
-		float y1 = function(r[0]);
-		float y2 = function(r[1]);
-		float x = fabs(r[1] - r[0]);
-		m = r[0] + x / 2;
-		float ym = function(m);
-		float x1 = fabs(m - r[0]);
-		float x2 = fabs(r[1] - m);
-		float area1 = trapezoidalArea(x, y1, y2);
-		float area2 = trapezoidalArea(x1, y1, ym) + trapezoidalArea(x2, ym, y2);
-		if (fabs(area1 - area2) < 3 * x * tolerance) {
-			delete r;
-			area += area2;
+void adaptiveQuadrature(float* range, float tolerance, int rank){
+	int decr = -1;
+	int incr = 1;
+	float area1 = 0.0;
+	/*while(true){
+		idle = *((int*)rmaGet(&idle, MPI_INT, idlewin));
+		if(workready() || (idle != P))
+			//idle = idle - 1
+			rmaOperation(&idle, MPI_SUM, &decr, MPI_INT, idlewin);
+		else
+			break;
+		while(getwork()){
+
 		}
-		else {
-			float* r1 = new float[2];
-			r1[0] = r[0];
-			r1[1] = m;
-			float* r2 = new float[2];
-			r2[0] = m;
-			r2[1] = r[1];
-			s.push(r1);
-			s.push(r2);
-			delete r;
-		}
+		//idle = idle + 1
+		rmaOperation(&idle, MPI_SUM, &incr, MPI_INT, idlewin);
+	}*/
+}
+
+int main(int argc, char** argv){
+	int rank;
+	float* range;
+	float tolerance;
+	task tasks[ARRAY_LEN];
+	MPI_Datatype taskType;
+	int blocklen[2] = {1, 1};
+	MPI_Aint indices[2];
+	indices[0] = (MPI_Aint)&tasks[0].a - (MPI_Aint)tasks;
+	indices[1] = (MPI_Aint)&tasks[0].b - (MPI_Aint)tasks;
+	int types[3] = {MPI_FLOAT, MPI_FLOAT};
+	MPI_Init(&argc, &argv);
+	MPI_Comm_size(MPI_COMM_WORLD, &P);
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	MPI_Type_create_struct(2, blocklen, indices, types, &taskType);
+	MPI_Type_commit(&taskType);
+	idle = P;
+	if(rank == 0){
+		MPI_Win_create(&idle, sizeof(int), sizeof(int), MPI_INFO_NULL, MPI_COMM_WORLD, &idlewin);
+		MPI_Win_create(&area, sizeof(float), sizeof(float), MPI_INFO_NULL, MPI_COMM_WORLD, &areawin);
 	}
-	return area;
-}
-
-int main(int argc, char** argv) {
-	float x1, x2, t;
-	cout << "Enter an x1: ";
-	cin >> x1;
-	cout << "Enter an x2: ";
-	cin >> x2;
-	cout << "Enter a threshold: ";
-	cin >> t;
-	float* range = new float[2];
-	range[0] = x1;
-	range[1] = x2;
-	auto t1 = chrono::high_resolution_clock::now();
-	float area = adaptiveQuadrature(range, t);
-	auto t2 = chrono::high_resolution_clock::now();
-	auto duration = chrono::duration_cast<chrono::microseconds>(t2 - t1).count();
-	cout << "The area is " << area << endl;
-	cout<<"It ran in "<<duration<<" seconds.\n";
+	else {
+		MPI_Win_create(NULL, 0, sizeof(int), MPI_INFO_NULL, MPI_COMM_WORLD, &idlewin);
+		MPI_Win_create(NULL, 0, sizeof(float), MPI_INFO_NULL, MPI_COMM_WORLD, &areawin);
+	}
+	adaptiveQuadrature(range, tolerance, rank);
+	MPI_Win_free(&idlewin);
+	MPI_Win_free(&areawin);
+	MPI_Finalize();
 	return 0;
 }
