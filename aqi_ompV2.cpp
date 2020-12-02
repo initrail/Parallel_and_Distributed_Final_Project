@@ -77,7 +77,7 @@ int main(int argc, char **argv)
 #pragma omp taskq lastprivate(answer) schedule(dynamic)
         {
 #pragma omp task
-            answer = integral_par(sin, 0, 2, tolerance); //used sin(x) function in this case
+            answer = integral_par(sin, a, b, tolerance); //used sin(x) function in this case
         }/* end taskq */
 
     } /* end parallel */
