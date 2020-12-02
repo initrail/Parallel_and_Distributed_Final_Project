@@ -18,16 +18,17 @@ struct task{
 	float b;
 };
 
-void rmaOperation(void* var1, MPI_Op op, void* var2, MPI_Datatype type,  MPI_Win& window/*, int rank*/){	
+void* rmaOperation(void* var1, MPI_Op op, void* var2, MPI_Datatype type,  MPI_Win& window/*, int rank*/){	
 	MPI_Win_lock(MPI_LOCK_EXCLUSIVE, 0, 0, window);
 	MPI_Fetch_and_op(var2, var1, type, 0, 0, op, window);
-	//MPI_Get(var1, 1, type, 0, 0, 1, type, window);
+	MPI_Get(var1, 1, type, 0, 0, 1, type, window);
 	MPI_Win_unlock(0, window);
 	//MPI_Get and the print statement are for debugging purposes
 	/*if(type == MPI_INT)
 		printf("p %d idle = %d\n", rank, *((int*)var1));
 	else if(type == MPI_FLOAT)
 		printf("p %d area = %f\n", rank, *((float*)var1));*/
+	return var1;
 }
 
 int rmaPut(void* var, int disp, MPI_Datatype type, MPI_Win& window){
@@ -69,9 +70,11 @@ void adaptiveQuadrature(float* range, float tolerance, int rank){
 				task1.b = m;
 				task2.a = m;
 				task2.b = task0.b;
-				int disp = *((int*)rmaGet(&vars[1], 1, MPI_INT, taskwin));
-				int res1 = rmaPut(&task1, disp, taskType, taskwin);
-				int res2 = rmaPut(&task2, disp, taskType, taskwin);
+				//Atomically update AND THEN get disposition to avoid race conditions
+				int disp = *((int*)rmaOperation(&vars[1], MPI_SUM, &two, MPI_FLOAT, varswin));
+				disp-=2;
+				int res1 = rmaPut(&task1, disp+1, taskType, taskwin);
+				int res2 = rmaPut(&task2, disp+2, taskType, taskwin);
 				if(res1 != MPI_SUCCESS || res2 != MPI_SUCCESS)
 					exit(1);
 			}
