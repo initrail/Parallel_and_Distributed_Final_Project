@@ -6,7 +6,7 @@ using namespace std;
 
 float function(float x) {
 	return x;
-
+}
 
 float trapezoidalArea(float x, float y1, float y2) {
 	return x * fmin(y1, y2) + (fmax(y1, y2) - fmin(y1, y2)) * x / 2;
