@@ -49,17 +49,26 @@ float adaptiveQuadrature(float* range, float tolerance) {
 	
 	int numProcess = 8;	//replace with user argument for number of processes
 	int idle = numProcess;
+	bool gotwork = false;
 	//shared: #of processes, idle, area
 	while (true)
 	{
+		gotwork = false;
 		//critical section work
 		bool more = !s.empty() || idle != numProcess;
 		if (more)
+		{
 			idle = idle - 1;
+			if (!s.empty()) {
+				r = s.top();
+				s.pop();
+				gotwork = true;
+			}
+		}
 		//end of critical section
 		if (!more)
 			break;
-		while (getWork(s, r))
+		if (gotwork)
 		{
 			float y1 = function(r[0]);
 			float y2 = function(r[1]);
@@ -83,12 +92,14 @@ float adaptiveQuadrature(float* range, float tolerance) {
 				float* r2 = new float[2];
 				r2[0] = m;
 				r2[1] = r[1];
-				if (!putWork(s, r1) || !putWork(s, r2))
-					cout << "No room in stack" << endl;
+				//critical section work
+				s.push(r1);
+				s.push(r2);
+				//end of critical section work
 				delete r;
 			}
 		}//end of while
-		//critical sectio work
+		//critical section work
 		idle = idle + 1;
 		//end of critical section
 
