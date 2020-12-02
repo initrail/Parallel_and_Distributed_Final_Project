@@ -126,6 +126,6 @@ int main(int argc, char** argv) {
 	auto t2 = chrono::high_resolution_clock::now();
 	auto duration = chrono::duration_cast<chrono::microseconds>(t2 - t1).count();
 	cout << "The area is " << area << endl;
-	cout << "It ran in " << duration << "micro seconds.\n";
+	cout << "It ran in " << duration << " micro seconds.\n";
 	return 0;
 }
