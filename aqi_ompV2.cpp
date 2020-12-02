@@ -6,6 +6,10 @@
 
 using namespace std;
 
+double func(double x) {
+	return x * x;
+}
+
 double integral_par(
         double (*f)(double x), /* function to integrate */
         double a, /* left interval boundary */
@@ -77,7 +81,7 @@ int main(int argc, char **argv)
 #pragma omp taskq lastprivate(answer) schedule(dynamic)
         {
 #pragma omp task
-            answer = integral_par(sin, a, b, tolerance); //used sin(x) function in this case
+            answer = integral_par(func, a, b, tolerance); //used sin(x) function in this case
         }/* end taskq */
 
     } /* end parallel */
