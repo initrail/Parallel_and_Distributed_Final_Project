@@ -1,11 +1,12 @@
 #include <iostream>
 #include <stack>
 #include <chrono>
+#include <math.h>
 using namespace std;
 
 float function(float x) {
-	return x*x;
-}
+	return x;
+
 
 float trapezoidalArea(float x, float y1, float y2) {
 	return x * fmin(y1, y2) + (fmax(y1, y2) - fmin(y1, y2)) * x / 2;
@@ -15,8 +16,8 @@ float adaptiveQuadrature(float* range, float tolerance) {
 	stack<float*> s;
 	s.push(range);
 	float area = 0;
-	float* r;
-	float m;
+	float* r;	//range
+	float m;	//midpoint
 	while (!s.empty()) {
 		r = s.top();
 		s.pop();
@@ -64,6 +65,6 @@ int main(int argc, char** argv) {
 	auto t2 = chrono::high_resolution_clock::now();
 	auto duration = chrono::duration_cast<chrono::microseconds>(t2 - t1).count();
 	cout << "The area is " << area << endl;
-	cout<<"It ran in "<<duration<<" seconds.\n";
+	cout<<"It ran in "<<duration<<" micro seconds.\n";
 	return 0;
 }

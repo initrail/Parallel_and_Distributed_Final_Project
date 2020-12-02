@@ -1,14 +1,18 @@
 #include <iostream>
 #include <mpi.h>
 #include <unistd.h>
+#include <cmath>
+#include <cstdlib>
 using namespace std;
 
-int idle = 0;
+int vars[2];
 float area = 0;
-MPI_Win idlewin;
+MPI_Win varswin;
 MPI_Win areawin;
+MPI_Win taskwin;
 int P;
-static const int ARRAY_LEN = 1000;
+MPI_Datatype taskType;
+static const int TASK_LEN = 1000;
 struct task{
 	float a;
 	float b;
@@ -26,9 +30,17 @@ void rmaOperation(void* var1, MPI_Op op, void* var2, MPI_Datatype type,  MPI_Win
 		printf("p %d area = %f\n", rank, *((float*)var1));*/
 }
 
-void* rmaGet(void* var, MPI_Datatype type, MPI_Win& window){
+int rmaPut(void* var, int disp, MPI_Datatype type, MPI_Win& window){
+	int res;
 	MPI_Win_lock(MPI_LOCK_EXCLUSIVE, 0, 0, window);
-	MPI_Get(var, 1, type, 0, 0, 1, type, window);
+	res = MPI_Put(var, 1, type, 0, disp, 1, type, window);
+	MPI_Win_unlock(0, window);
+	return res;
+}
+
+void* rmaGet(void* var, int disp, MPI_Datatype type, MPI_Win& window){
+	MPI_Win_lock(MPI_LOCK_EXCLUSIVE, 0, 0, window);
+	MPI_Get(var, 1, type, 0, disp, 1, type, window);
 	MPI_Win_unlock(0, window);
 	return var;
 }
@@ -36,28 +48,44 @@ void* rmaGet(void* var, MPI_Datatype type, MPI_Win& window){
 void adaptiveQuadrature(float* range, float tolerance, int rank){
 	int decr = -1;
 	int incr = 1;
-	float area1 = 0.0;
-	/*while(true){
-		idle = *((int*)rmaGet(&idle, MPI_INT, idlewin));
-		if(workready() || (idle != P))
+	int two = 2;
+	float area1 = 0.0, area2 = 0.0;
+	task task0, task1, task2;
+	while(true){
+		//Get idle value
+		vars[0] = *((int*)rmaGet(vars, 0, MPI_INT, varswin));
+		//See if there is a task 
+		if(workready() || (vars[0] != P))
 			//idle = idle - 1
-			rmaOperation(&idle, MPI_SUM, &decr, MPI_INT, idlewin);
+			rmaOperation(vars, MPI_SUM, &decr, MPI_INT, varswin);
 		else
 			break;
 		while(getwork()){
-
+			if (fabs(area1 - area2) < 3 * (task0.b - task0.a) * tolerance)
+				rmaOperation(&area, MPI_SUM, &area2, MPI_FLOAT, areawin);
+			else {
+				float m = (task0.b - task0.a)/2;
+				task1.a = task0.a;
+				task1.b = m;
+				task2.a = m;
+				task2.b = task0.b;
+				int disp = *((int*)rmaGet(&vars[1], 1, MPI_INT, taskwin));
+				int res1 = rmaPut(&task1, disp, taskType, taskwin);
+				int res2 = rmaPut(&task2, disp, taskType, taskwin);
+				if(res1 != MPI_SUCCESS || res2 != MPI_SUCCESS)
+					exit(1);
+			}
 		}
 		//idle = idle + 1
-		rmaOperation(&idle, MPI_SUM, &incr, MPI_INT, idlewin);
-	}*/
+		rmaOperation(vars, MPI_SUM, &incr, MPI_INT, varswin);
+	}
 }
 
 int main(int argc, char** argv){
 	int rank;
 	float* range;
 	float tolerance;
-	task tasks[ARRAY_LEN];
-	MPI_Datatype taskType;
+	task tasks[TASK_LEN];
 	int blocklen[2] = {1, 1};
 	MPI_Aint indices[2];
 	indices[0] = (MPI_Aint)&tasks[0].a - (MPI_Aint)tasks;
@@ -68,17 +96,22 @@ int main(int argc, char** argv){
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Type_create_struct(2, blocklen, indices, types, &taskType);
 	MPI_Type_commit(&taskType);
-	idle = P;
+	vars[0] = P;
 	if(rank == 0){
-		MPI_Win_create(&idle, sizeof(int), sizeof(int), MPI_INFO_NULL, MPI_COMM_WORLD, &idlewin);
+		//Expose the memory of process 0 to the other processes
+		MPI_Win_create(tasks, sizeof(task)*TASK_LEN, sizeof(task), MPI_INFO_NULL, MPI_COMM_WORLD, &taskwin);
+		MPI_Win_create(vars, sizeof(int)*2, sizeof(int), MPI_INFO_NULL, MPI_COMM_WORLD, &varswin);
 		MPI_Win_create(&area, sizeof(float), sizeof(float), MPI_INFO_NULL, MPI_COMM_WORLD, &areawin);
 	}
 	else {
-		MPI_Win_create(NULL, 0, sizeof(int), MPI_INFO_NULL, MPI_COMM_WORLD, &idlewin);
+		//The other processes don't need to expose any of their memory
+		MPI_Win_create(NULL, 0, sizeof(task), MPI_INFO_NULL, MPI_COMM_WORLD, &taskwin);
+		MPI_Win_create(NULL, 0, sizeof(int), MPI_INFO_NULL, MPI_COMM_WORLD, &varswin);
 		MPI_Win_create(NULL, 0, sizeof(float), MPI_INFO_NULL, MPI_COMM_WORLD, &areawin);
 	}
 	adaptiveQuadrature(range, tolerance, rank);
-	MPI_Win_free(&idlewin);
+	MPI_Win_free(&varswin);
+	MPI_Win_free(&taskwin);
 	MPI_Win_free(&areawin);
 	MPI_Finalize();
 	return 0;
