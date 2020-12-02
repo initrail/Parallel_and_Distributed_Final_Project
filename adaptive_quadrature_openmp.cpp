@@ -1,3 +1,6 @@
+//don't use this. outdated
+
+
 //#include <omp.h>
 #include <iostream>
 #include <stack>
