@@ -57,6 +57,9 @@ bool getwork(task& t){
 	if(vars[1] < 0){
 		//if(rank == 0)
 		//printf("Rank %d entered the if.\n", rank);
+		//Set the work boolean to false, this should send this process back to the outer while loop
+		//where it will wait for the work boolean to be set to true by a process inside of the
+		//inner while loop
 		avail = false;
 		rmaPut(&avail, 0, MPI_C_BOOL, workwin);
 		//If there is no work put the disposition back to what it was before assuming there was work
@@ -125,7 +128,7 @@ void adaptiveQuadrature(float* range, float tolerance, int rank){
 				}
 				while(vars[1] < 0 || vars[1] > TASK_LEN);
 				bool w = true;
-				printf("rank %d is putting in a task at disp %d.\n", rank, vars[1] + 0);
+				printf("rank %d is putting in a task at disp %d.\n", rank, vars[1]);
 				int res1 = rmaPut(&task1, vars[1], taskType, taskwin);
 				printf("rank %d is putting in a task at disp %d.\n", rank, vars[1] + 1);
 				int res2 = rmaPut(&task2, vars[1]+1, taskType, taskwin);
