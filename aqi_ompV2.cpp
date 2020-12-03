@@ -17,18 +17,19 @@ double integral_par(
         double tolerance) /* error tolerance */
 
 {
-    double h, mid, one_trapezoid_area, two_trapezoid_area, integral_result=0.0;
+    double h, x, mid, one_trapezoid_area, two_trapezoid_area, integral_result=0.0;
     double  left_area=0.0;
     double right_area =0.0;
     double ans = 0.0;
 
     h = b - a;
+	x = fabs(b - a);
     mid = (a+b)/2;
     one_trapezoid_area = h * (f(a) + f(b)) / 2.0;
     two_trapezoid_area = h/2 * (f(a) + f(mid)) / 2.0 +
                          h/2 * (f(mid) + f(b)) / 2.0;
     if (fabs(one_trapezoid_area - two_trapezoid_area)
-        < 3.0 * tolerance)
+        < 3.0 * x * tolerance)
     {/* error acceptable */
 
         integral_result = two_trapezoid_area;
