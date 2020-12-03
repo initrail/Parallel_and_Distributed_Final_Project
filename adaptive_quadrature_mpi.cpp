@@ -14,7 +14,7 @@ MPI_Win areawin;
 MPI_Win taskwin;
 MPI_Win workwin;
 MPI_Datatype taskType;
-static const int TASK_LEN = 1000;
+static const int TASK_LEN = 10;
 struct task{
 	float a;
 	float b;
@@ -52,23 +52,22 @@ bool getwork(task& t){
 	//Decrement the disposition of tasks to assume there is work
 	vars[1] = *((int*)rmaOperation(&vars[1], MPI_SUM, &decr, 1, MPI_INT, varswin));
 	//if(rank == 0)
-	printf("Rank %d has a disposition of %d.\n", rank, vars[1]);
+	//printf("Rank %d has a disposition of %d.\n", rank, vars[1]);
 	//If the disposition is less than 0 that means there are no more tasks available
 	if(vars[1] < 0){
 		//if(rank == 0)
-		printf("Rank %d entered the if.\n", rank);
+		//printf("Rank %d entered the if.\n", rank);
 		avail = false;
+		rmaPut(&avail, 0, MPI_C_BOOL, workwin);
 		//If there is no work put the disposition back to what it was before assuming there was work
 		vars[1] = *((int*)rmaOperation(&vars[1], MPI_SUM, &incr, 1, MPI_INT, varswin));
 		//if(rank == 0)
-		printf("The second print rank %d has disposition of %d.\n", rank, vars[1]);
+		//printf("The second print rank %d has disposition of %d.\n", rank, vars[1]);
 	}
 	else {
 		//printf("The rank %d has disposition of %d.\n", rank, vars[1]);
 		t = *((task*)rmaGet(&t, vars[1], MPI_FLOAT, taskwin));
-		//rmaOperation(&vars[1], MPI_SUM, &decr, MPI_INT, varswin);
 	}
-	printf("final disp = %d\n", vars[1]);
 	return avail;
 }
 
@@ -101,6 +100,7 @@ void adaptiveQuadrature(float* range, float tolerance, int rank){
 		else;
 			
 		while(getwork(task0)){
+			printf("rank %d has entered the computational area.\n", rank);
 			float y1 = function(task0.a);
 			float y2 = function(task0.b);
 			float x = fabs(task0.b - task0.a);
@@ -123,13 +123,14 @@ void adaptiveQuadrature(float* range, float tolerance, int rank){
 					//vars[1] = *((int*)rmaOperation(&vars[1], MPI_SUM, &two, 1, MPI_INT, varswin));
 					vars[1] = *((int*)rmaGet(&vars[1], 1, MPI_INT, varswin));
 				}
-				while(vars[1] <= 0 || vars[1] < 1000);
-				printf("rank %d is putting in a task at disp %d.\n", rank, vars[1] - 1);
-				int res1 = rmaPut(&task1, vars[1]-1, taskType, taskwin);
-				printf("rank %d is putting in a task at disp %d.\n", rank, vars[1] - 2);
-				int res2 = rmaPut(&task2, vars[1]-2, taskType, taskwin);
-				if(res1 != MPI_SUCCESS || res2 != MPI_SUCCESS)
-					exit(1);
+				while(vars[1] < 0 || vars[1] > TASK_LEN);
+				bool w = true;
+				printf("rank %d is putting in a task at disp %d.\n", rank, vars[1] + 0);
+				int res1 = rmaPut(&task1, vars[1], taskType, taskwin);
+				printf("rank %d is putting in a task at disp %d.\n", rank, vars[1] + 1);
+				int res2 = rmaPut(&task2, vars[1]+1, taskType, taskwin);
+				rmaOperation(&vars[1], MPI_SUM, &two, 1, MPI_INT, varswin);
+				rmaPut(&w, 0, MPI_C_BOOL, workwin);
 			}
 		}
 		//idle = idle + 1
