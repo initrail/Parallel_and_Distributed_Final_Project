@@ -5,7 +5,8 @@
 using namespace std;
 
 float function(float x) {
-	return x*x;
+	return x * x;
+}
 
 
 float trapezoidalArea(float x, float y1, float y2) {
@@ -15,7 +16,7 @@ float trapezoidalArea(float x, float y1, float y2) {
 float adaptiveQuadrature(float* range, float tolerance) {
 	stack<float*> s;
 	s.push(range);
-	float area = 0;
+	float area = 0.0;
 	float* r;	//range
 	float m;	//midpoint
 	while (!s.empty()) {
@@ -63,8 +64,8 @@ int main(int argc, char** argv) {
 	auto t1 = chrono::high_resolution_clock::now();
 	float area = adaptiveQuadrature(range, t);
 	auto t2 = chrono::high_resolution_clock::now();
-	auto duration = chrono::duration_cast<chrono::microseconds>(t2 - t1).count();
+	auto duration = chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
 	cout << "The area is " << area << endl;
-	cout<<"It ran in "<<duration<<" micro seconds.\n";
+	cout<<"It ran in "<<duration<<" milliseconds.\n";
 	return 0;
 }
