@@ -35,6 +35,7 @@ double integral_par(
 
     }
     else{
+#pragma omp parallel
 #pragma omp taskq
         {
 #pragma omp task
