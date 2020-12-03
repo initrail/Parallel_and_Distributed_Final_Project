@@ -122,17 +122,21 @@ void adaptiveQuadrature(float* range, float tolerance, int rank){
 				task2.a = m;
 				task2.b = task0.b;
 				//get disposition to avoid race conditions
+				//The do-while should prevent the process from getting a disposition
+				//value that is outside of the range of the array
 				do {
 					//vars[1] = *((int*)rmaOperation(&vars[1], MPI_SUM, &two, 1, MPI_INT, varswin));
 					vars[1] = *((int*)rmaGet(&vars[1], 1, MPI_INT, varswin));
 				}
-				while(vars[1] < 0 || vars[1] > TASK_LEN);
+				while(vars[1] < 0 || vars[1] >= TASK_LEN - 2);
+				//Increase disposition by two to seal in the location of the two new tasks
+				vars[1] = *((int*)rmaOperation(&vars[1], MPI_SUM, &two, 1, MPI_INT, varswin));
 				bool w = true;
-				//printf("rank %d is putting in a task at disp %d.\n", rank, vars[1]);
-				int res1 = rmaPut(&task1, vars[1], taskType, taskwin);
-				//printf("rank %d is putting in a task at disp %d.\n", rank, vars[1] + 1);
-				int res2 = rmaPut(&task2, vars[1]+1, taskType, taskwin);
-				rmaOperation(&vars[1], MPI_SUM, &two, 1, MPI_INT, varswin);
+				//printf("rank %d is putting in a task at disp %d.\n", rank, vars[1] - 2);
+				int res1 = rmaPut(&task1, vars[1] - 2, taskType, taskwin);
+				//printf("rank %d is putting in a task at disp %d.\n", rank, vars[1] - 1);
+				int res2 = rmaPut(&task2, vars[1] - 1, taskType, taskwin);
+				//There is work so set the work boolean to true
 				rmaPut(&w, 0, MPI_C_BOOL, workwin);
 			}
 		}
