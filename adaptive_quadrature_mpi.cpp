@@ -44,6 +44,7 @@ void* rmaGet(void* var, int disp, MPI_Datatype type, MPI_Win& window){
 	return var;
 }
 
+//getwork seems finished
 bool getwork(task& t){
 	//Assume that work needs to be done
 	bool avail = true;
@@ -51,25 +52,20 @@ bool getwork(task& t){
 	int incr = 1;
 	//Decrement the disposition of tasks to assume there is work
 	vars[1] = *((int*)rmaOperation(&vars[1], MPI_SUM, &decr, 1, MPI_INT, varswin));
-	//if(rank == 0)
-	//printf("Rank %d has a disposition of %d.\n", rank, vars[1]);
 	//If the disposition is less than 0 that means there are no more tasks available
 	if(vars[1] < 0){
-		//if(rank == 0)
-		//printf("Rank %d entered the if.\n", rank);
-		//Set the work boolean to false, this should send this process back to the outer while loop
-		//where it will wait for the work boolean to be set to true by a process inside of the
-		//inner while loop
+		//Set the work boolean to false, this should send any process in this if statement back 
+		//to the outer while loop where it will wait for the work boolean to be set to true by a
+		//process inside of the inner while loop
 		avail = false;
 		rmaPut(&avail, 0, MPI_C_BOOL, workwin);
 		//If there is no work put the disposition back to what it was before assuming there was work
 		vars[1] = *((int*)rmaOperation(&vars[1], MPI_SUM, &incr, 1, MPI_INT, varswin));
-		//if(rank == 0)
-		//printf("The second print rank %d has disposition of %d.\n", rank, vars[1]);
 	}
 	else {
-		//printf("The rank %d has disposition of %d.\n", rank, vars[1]);
-		t = *((task*)rmaGet(&t, vars[1], MPI_FLOAT, taskwin));
+		//Otherwise get the task, and disposition is left alone after being decremented earlier
+		t = *((task*)rmaGet(&t, vars[1], taskType, taskwin));
+		printf("t.a = %f and t.b = %f at index = %d\n", t.a, t.b, vars[1]);
 	}
 	return avail;
 }
@@ -101,9 +97,10 @@ void adaptiveQuadrature(float* range, float tolerance, int rank){
 			//idle = idle - 1
 			rmaOperation(vars, MPI_SUM, &decr, 0, MPI_INT, varswin);
 		else;
+			//break;
 			
 		while(getwork(task0)){
-			printf("rank %d has entered the computational area.\n", rank);
+			//printf("rank %d has entered the computational area.\n", rank);
 			float y1 = function(task0.a);
 			float y2 = function(task0.b);
 			float x = fabs(task0.b - task0.a);
@@ -113,24 +110,27 @@ void adaptiveQuadrature(float* range, float tolerance, int rank){
 			float x2 = fabs(task0.b - m);
 			area1 = trapezoidalArea(x, y1, y2);
 			area2 = trapezoidalArea(x1, y1, ym) + trapezoidalArea(x2, ym, y2);
-			if (fabs(area1 - area2) < 3 * (task0.b - task0.a) * tolerance)
-				rmaOperation(&area, MPI_SUM, &area2, 0, MPI_FLOAT, areawin);
+			printf("area1 = %f\n", area1);
+			printf("area2 = %f\n", area2);
+			if (fabs(area1 - area2) < 3 * (task0.b - task0.a) * tolerance){
+				rmaOperation(&area2, MPI_SUM, &area2, 0, MPI_FLOAT, areawin);
+				printf("area = %f\n", area);
+			}
 			else {
-				m = (task0.b - task0.a)/2;
 				task1.a = task0.a;
 				task1.b = m;
 				task2.a = m;
 				task2.b = task0.b;
-				// get disposition to avoid race conditions
+				//get disposition to avoid race conditions
 				do {
 					//vars[1] = *((int*)rmaOperation(&vars[1], MPI_SUM, &two, 1, MPI_INT, varswin));
 					vars[1] = *((int*)rmaGet(&vars[1], 1, MPI_INT, varswin));
 				}
 				while(vars[1] < 0 || vars[1] > TASK_LEN);
 				bool w = true;
-				printf("rank %d is putting in a task at disp %d.\n", rank, vars[1]);
+				//printf("rank %d is putting in a task at disp %d.\n", rank, vars[1]);
 				int res1 = rmaPut(&task1, vars[1], taskType, taskwin);
-				printf("rank %d is putting in a task at disp %d.\n", rank, vars[1] + 1);
+				//printf("rank %d is putting in a task at disp %d.\n", rank, vars[1] + 1);
 				int res2 = rmaPut(&task2, vars[1]+1, taskType, taskwin);
 				rmaOperation(&vars[1], MPI_SUM, &two, 1, MPI_INT, varswin);
 				rmaPut(&w, 0, MPI_C_BOOL, workwin);
@@ -145,29 +145,33 @@ void getargs(int& argc, char** argv, float& tol, task* t){
 	if(argc != 4)
 		exit(1);
 	tol = atof(argv[3]);
-	t->a = atoi(argv[1]);
-	t->b = atoi(argv[2]);
+	if(rank == 0){
+		t->a = atoi(argv[1]);
+		t->b = atoi(argv[2]);
+	}
 	work = true;
 }
 
 int main(int argc, char** argv){
+	MPI_Init(&argc, &argv);
+	MPI_Comm_size(MPI_COMM_WORLD, &P);
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	float* range;
 	float tolerance;
 	getargs(argc, argv, tolerance, tasks);
+	if(rank == 0){
+		cout<<"initial task.a = "<<tasks[0].a<<" and initial task.b = "<<tasks[0].b<<endl;
+		cout<<"tolerance = "<<tolerance<<endl;
+	}
+	//Create the task data type in MPI
 	int blocklen[2] = {1, 1};
 	MPI_Aint indices[2];
 	indices[0] = (MPI_Aint)&tasks[0].a - (MPI_Aint)tasks;
 	indices[1] = (MPI_Aint)&tasks[0].b - (MPI_Aint)tasks;
 	int types[3] = {MPI_FLOAT, MPI_FLOAT};
-	MPI_Init(&argc, &argv);
-	MPI_Comm_size(MPI_COMM_WORLD, &P);
-	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-	if(rank == 0){
-		cout<<"initial task.a = "<<tasks[0].a<<" and initial task.b = "<<tasks[0].b<<endl;
-		cout<<"tolerance = "<<tolerance<<endl;
-	}
 	MPI_Type_create_struct(2, blocklen, indices, types, &taskType);
 	MPI_Type_commit(&taskType);
+	//vars[0] is how many idle processes there are
 	vars[0] = P;
 	//There must be atleast one task, vars[1] is the index of tasks
 	vars[1] = 1;
