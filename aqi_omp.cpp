@@ -7,7 +7,7 @@
 using namespace std;
 
 double func(double x) {
-    return x * x;
+    return cos(x)*sin(exp(x))+1;
 }
 
 double integral_par(

@@ -49,7 +49,7 @@ float trapezoidalArea(float x, float y1, float y2) {
 }
 
 float function(float x) {
-	return x*x;
+	return cos(x)*sin(exp(x)) + 1;
 }
 bool workready(){
 	work = *((bool*)rmaGet(&work, 0, MPI_C_BOOL, workwin));

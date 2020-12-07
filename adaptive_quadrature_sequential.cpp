@@ -7,7 +7,7 @@
 using namespace std;
 
 double function(double x) {
-	return x * x;
+	return cos(x)*sin(exp(x)) + 1;
 }
 
 
@@ -67,7 +67,7 @@ int main(int argc, char** argv) {
 	double area = adaptiveQuadrature(range, t);
 	auto t2 = chrono::high_resolution_clock::now();
 	auto duration = chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
-	cout << fixed << setprecision(8);
+	cout << fixed << setprecision(26);
 
 	cout << "The area is " << area << endl;
 	cout<<"It ran in "<<duration<<" milliseconds.\n";
