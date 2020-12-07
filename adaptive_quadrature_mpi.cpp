@@ -117,7 +117,7 @@ void adaptiveQuadrature(float* range, float tolerance){
 			//See if it is below threshold
 			if (fabs(area1 - area2) < 3 * (task0.b - task0.a) * tolerance){
 				//If it is increase vars[0] aka idle by 1 and update area variable
-				area = *((float*)rmaOperation(&area2, MPI_SUM, &area2, 0, MPI_FLOAT, areawin));
+				area = *((float*)rmaOperation(&area, MPI_SUM, &area2, 0, MPI_FLOAT, areawin));
 				vars[0] = *((int*)rmaOperation(vars, MPI_SUM, &incr, 0, MPI_INT, varswin));
 			}
 			else {
