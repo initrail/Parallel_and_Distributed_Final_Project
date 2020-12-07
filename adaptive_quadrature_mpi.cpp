@@ -56,39 +56,40 @@ bool workready(){
 	return work;
 }
 
-//getwork seems finished
 bool getwork(task& t){
+	//Lock taskwin to get a task
 	MPI_Win_lock(MPI_LOCK_EXCLUSIVE, 0, 0, taskwin);
 	//Assume that work needs to be done
 	bool avail = true;
 	int decr = -1;
 	int incr = 1;
-	//Decrement the disposition of tasks to assume there is work
+	//get the disposition of the task (vars[1] gets updated via reference)
 	int disp = *((int*)rmaGet(&vars[1], 1, MPI_INT, varswin));
 	//If the disposition is less than 0 that means there are no more tasks available
 	if(vars[1] <= 0){
 		//Set the work boolean to false, this should send any process in this if statement back 
 		//to the outer while loop where it will wait for the work boolean to be set to true by a
 		//process inside of the inner while loop
-		//update work boolean locally
 		avail = false;
 		//update work boolean globally
 		rmaPut(&avail, 0, MPI_C_BOOL, workwin);
 	}
 	else {
-		//Decrement vars[1] for all threads
+		//Decrement vars[1] aka disp for all threads
 		rmaOperation(&vars[1], MPI_SUM, &decr, 1, MPI_INT, varswin);
-		//The update is not seen until the taskwin lock is released so decrement vars[1] locally
+		//The update is not seen until the taskwin lock is released so decrement vars[1] aka disp locally
 		disp--;
-		//This process is no longer idle since it has obtained a task
+		//This process is no longer idle since it has obtained a task so decrement vars[0] aka idle
 		vars[0] = *((int*)rmaOperation(vars, MPI_SUM, &decr, 0, MPI_INT, varswin));
+		//Get the task using var[1] aka disp as an index
 		MPI_Get(&t, 1, taskType, 0, disp, 1, taskType, taskwin);
 	}
+	//Release taskwin
 	MPI_Win_unlock(0, taskwin);
 	return avail;
 }
 
-void adaptiveQuadrature(float* range, float tolerance, int rank){
+void adaptiveQuadrature(float* range, float tolerance){
 	int decr = -1;
 	int incr = 1;
 	int two = 2;
@@ -97,10 +98,12 @@ void adaptiveQuadrature(float* range, float tolerance, int rank){
 	while(true){
 		//Get idle value
 		vars[0] = *((int*)rmaGet(vars, 0, MPI_INT, varswin));
-		//See if there is a task
+		//If there is no more work and vars[0] aka idle equals P then exit and the calculation is done
 		if(!workready() && (vars[0] == P))
 			break;
+		//See if there are anymore tasks
 		while(getwork(task0)){
+			//Math to calculate area
 			float y1 = function(task0.a);
 			float y2 = function(task0.b);
 			float x = fabs(task0.b - task0.a);
@@ -110,29 +113,35 @@ void adaptiveQuadrature(float* range, float tolerance, int rank){
 			float x2 = fabs(task0.b - m);
 			area1 = trapezoidalArea(x, y1, y2);
 			area2 = trapezoidalArea(x1, y1, ym) + trapezoidalArea(x2, ym, y2);
+			//End of math to calculate area
+			//See if it is below threshold
 			if (fabs(area1 - area2) < 3 * (task0.b - task0.a) * tolerance){
+				//If it is increase vars[0] aka idle by 1 and update area variable
 				area = *((float*)rmaOperation(&area2, MPI_SUM, &area2, 0, MPI_FLOAT, areawin));
 				vars[0] = *((int*)rmaOperation(vars, MPI_SUM, &incr, 0, MPI_INT, varswin));
 			}
 			else {
+				//Otherwise create two tasks and add them to the array
 				task1.a = task0.a;
 				task1.b = m;
 				task2.a = m;
 				task2.b = task0.b;
+				//Lock taskwin to add the two tasks
 				MPI_Win_lock(MPI_LOCK_EXCLUSIVE, 0, 0, taskwin);
 				//Get the disposition
 				vars[1] = *((int*)rmaGet(&vars[1], 1, MPI_INT, varswin));
 				//update work boolean locally
 				work = true;
+				//Put the two tasks into the array
 				MPI_Put(&task1, 1, taskType, 0, vars[1], 1, taskType, taskwin);
 				MPI_Put(&task2, 1, taskType, 0, vars[1] + 1, 1, taskType, taskwin);
-				//There is work so set the work boolean to true
-				//update work boolean globally
+				//There is work so set the work boolean to true globally
 				rmaPut(&work, 0, MPI_C_BOOL, workwin);
 				//update disposition globally
 				rmaOperation(&vars[1], MPI_SUM, &two, 1, MPI_INT, varswin);
-				//Increase idle since this process is done processing
+				//Increase vars[0] aka idle since this process is done processing
 				vars[0] = *((int*)rmaOperation(vars, MPI_SUM, &incr, 0, MPI_INT, varswin));
+				//Release taskwin lock
 				MPI_Win_unlock(0, taskwin);
 			}
 		}
@@ -190,7 +199,7 @@ int main(int argc, char** argv){
 	float runtime;
 	if(rank == 0)
 		runtime = MPI_Wtime();
-	adaptiveQuadrature(range, tolerance, rank);
+	adaptiveQuadrature(range, tolerance);
 	if(rank == 0){
 		cout << "The area is " << area << endl;
 		runtime = MPI_Wtime() - runtime;
