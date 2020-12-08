@@ -115,7 +115,7 @@ void adaptiveQuadrature(float* range, float tolerance){
 			area2 = trapezoidalArea(x1, y1, ym) + trapezoidalArea(x2, ym, y2);
 			//End of math to calculate area
 			//See if it is below threshold
-			if (fabs(area1 - area2) < 3 * (task0.b - task0.a) * tolerance){
+			if (fabs(area1 - area2) < 3 * x * tolerance){
 				//If it is increase vars[0] aka idle by 1 and update area variable
 				area = *((float*)rmaOperation(&area, MPI_SUM, &area2, 0, MPI_FLOAT, areawin));
 				vars[0] = *((int*)rmaOperation(vars, MPI_SUM, &incr, 0, MPI_INT, varswin));
